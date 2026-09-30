@@ -16,7 +16,8 @@ def test_latex_preprocess_and_fallback():
     assert "\\needs{a number}" in tex and "\\citeneeded{some claim}" in tex
     assert "\\section{Intro}" in tex
     assert "\\begin{itemize}" in tex and "\\item one" in tex
-    assert "\\includegraphics[width=\\linewidth]{figures/arch.png}" in tex and "\\label{fig:arch}" in tex
+    assert "\\includegraphics[width=\\linewidth,height=0.4\\textheight,keepaspectratio]{figures/arch.png}" in tex
+    assert "\\label{fig:arch}" in tex
 
 
 def test_tex_escape_and_inline():

@@ -20,6 +20,15 @@ export const JOB_LABELS: Record<string, string> = {
   export: "Exporting",
 };
 
+/** A job the user stopped. The server records it as failed with this message. */
+export function isCancelled(j: JobInfo): boolean {
+  return j.status === "failed" && j.error === "Cancelled";
+}
+
+export function cancelJob(id: string): Promise<{ cancelled: boolean }> {
+  return api.post<{ cancelled: boolean }>(`/api/jobs/${id}/cancel`);
+}
+
 export function jobLabel(type: string): string {
   return JOB_LABELS[type] ?? type.replace(/_/g, " ");
 }

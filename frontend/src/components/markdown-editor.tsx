@@ -3,6 +3,7 @@ import { Check, Eye, Loader2, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/markdown";
 import { cn } from "@/lib/utils";
+import { useUnsaved } from "@/lib/unsaved";
 
 interface Props {
   value: string;
@@ -35,6 +36,7 @@ export function MarkdownEditor({ value, onSave, placeholder, minHeight = 320, re
   }, [value]);
 
   const dirty = draft !== value;
+  useUnsaved(dirty && !readOnly);
 
   const save = async () => {
     if (!dirty || saving) return;

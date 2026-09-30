@@ -101,3 +101,13 @@ def test_site_settings_and_pages(client):
     client.delete(f"/api/admin/pages/{pid}", headers=h)
     assert client.get("/api/admin/site", headers=h).json()["homepage"] == "landing"
     client.put("/api/admin/site", headers=h, json={"name": "Coscribe", "seo": {"index": True}})
+
+
+def test_workspace_reports_whether_models_are_set_up(client):
+    """Members read this to learn why nothing drafts; it needs a login and exposes no keys."""
+    client.cookies.clear()
+    assert client.get("/api/auth/workspace").status_code == 401
+    login(client)
+    body = client.get("/api/auth/workspace").json()
+    assert set(body) == {"ready", "admin_name"}
+    assert isinstance(body["ready"], bool) and body["admin_name"]

@@ -58,13 +58,13 @@ export function ProfileCard({ p }: { p: Profile }) {
   const status =
     p.status === "ready" ? <Badge variant="success">Ready</Badge> : p.status === "learning" ? <Badge variant="warning">Learning</Badge> : <Badge>Empty</Badge>;
   return (
-    <Card interactive onClick={() => navigate(`/profiles/${p.slug}`)} className="flex items-center gap-4 p-4">
+    <Card interactive onClick={() => navigate(`/profiles/${p.slug}`)} className="flex min-w-0 items-center gap-4 p-4">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
         <Feather className="h-4.5 w-4.5" />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <h3 className="truncate text-[14.5px] font-semibold">{p.name}</h3>
+        <div className="flex min-w-0 items-center gap-2">
+          <h3 className="min-w-0 truncate text-[14.5px] font-semibold">{p.name}</h3>
           {status}
           {p.shareable ? <Badge variant="outline">Shared</Badge> : null}
         </div>
@@ -141,6 +141,20 @@ function FirstRunChecklist() {
   );
 }
 
+/** Members cannot fix the workspace themselves, so they are told who can instead of meeting errors. */
+function WorkspaceNotReady() {
+  const ws = useQuery({ queryKey: ["workspace"], queryFn: () => api.get<{ ready: boolean; admin_name: string | null }>("/api/auth/workspace") });
+  if (!ws.data || ws.data.ready) return null;
+  return (
+    <Card className="mb-6 border-warning/40 bg-warning-soft/30 p-4">
+      <h3 className="text-[14px] font-semibold">The workspace is not set up yet</h3>
+      <p className="text-[12.5px] text-muted-foreground">
+        No AI model is connected, so nothing can be drafted, scanned or reviewed. Ask {ws.data.admin_name ?? "your administrator"} to finish the set-up. You can already create a project and describe your work.
+      </p>
+    </Card>
+  );
+}
+
 export function LibraryPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -169,7 +183,7 @@ export function LibraryPage() {
         }
       />
 
-      {user?.role === "admin" ? <FirstRunChecklist /> : null}
+      {user?.role === "admin" ? <FirstRunChecklist /> : <WorkspaceNotReady />}
 
       <SectionTitle>Projects</SectionTitle>
       {projects.isLoading ? (

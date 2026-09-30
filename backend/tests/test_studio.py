@@ -304,3 +304,46 @@ def test_missing_sections_and_add_section(client, admin):
     assert st["notes"][-1]["unverified"] is True
     assert "(unverified)" in interview.render_interview_md(st)
     client.delete(f"/api/projects/{slug}", headers=admin)
+
+
+def test_review_of_a_draft_first_project_extracts_facts_first(client, admin, monkeypatch):
+    """Without facts, the reviewer called the author's own numbers fabrications."""
+    import asyncio
+
+    from app.interview import service as interview_service
+    from app.jobs import JobContext
+    from app.llm.base import Completion, Usage
+    from app.studio import review
+
+    r = client.post(
+        "/api/projects", headers=admin, json={"title": "Draft review", "kind": "tool-paper", "entry": "draft"}
+    )
+    slug, pid = r.json()["slug"], r.json()["id"]
+    client.put(f"/api/projects/{slug}/files/system-spec", headers=admin, json={"content": "Used on 14 repositories."})
+    client.post(
+        f"/api/projects/{slug}/studio/import",
+        headers=admin,
+        json={"markdown": "## Intro\n\nWe used it on 14 repositories.\n"},
+    )
+    seen = {}
+
+    async def fake_facts(project_id, ctx=None):
+        from app import storage
+
+        storage.write_text(
+            storage.project_dir(slug) / "inputs" / "facts.md", "# Facts\n- 14 repositories (source: spec)\n"
+        )
+        return {}
+
+    async def fake_complete(db, purpose, messages, **kw):
+        seen["prompt"] = messages[0].content
+        return Completion(
+            text='{"verdict": "accept", "findings": []}', usage=Usage(input_tokens=1, output_tokens=1), model="m"
+        )
+
+    monkeypatch.setattr(interview_service, "extract_facts", fake_facts)
+    monkeypatch.setattr(review, "complete", fake_complete)
+    monkeypatch.setattr(JobContext, "progress", lambda self, pct, message=None: None)
+    asyncio.run(review.run_critique(pid, JobContext("no-job", "no-user")))
+    assert "14 repositories (source: spec)" in seen["prompt"]
+    client.delete(f"/api/projects/{slug}", headers=admin)

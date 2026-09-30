@@ -6,6 +6,7 @@ import { SiteLogo, useDocumentMeta, useSite } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { TopBar } from "@/components/layout/top-bar";
 import { usePageTracking } from "@/lib/events";
+import { UnsavedGuard } from "@/components/unsaved-guard";
 
 const nav = [
   { to: "/library", label: "Library", icon: Library, end: true },
@@ -82,6 +83,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen">
+      <UnsavedGuard />
       <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col border-r border-border bg-card/60 px-3 py-4 md:flex">
         <Sidebar />
       </aside>

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, matchPath, useLocation, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, ChevronRight, CircleHelp, Loader2, LogOut, Moon, Settings2, Sun, UserRound } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { AlertCircle, CheckCircle2, ChevronRight, CircleHelp, CircleSlash, Loader2, LogOut, Moon, Settings2, Sun, UserRound } from "lucide-react";
 import { api } from "@/lib/api";
-import { jobLabel } from "@/lib/jobs";
+import { cancelJob, isCancelled, jobLabel } from "@/lib/jobs";
 import { useAuth } from "@/lib/auth";
 import { STEPS, titleFor } from "@/lib/flow";
 import type { JobInfo, Profile, Project } from "@/lib/types";
@@ -96,6 +97,14 @@ function useActiveJobs() {
     });
   }, [active]);
   const finished = recent.filter((r) => !active.some((a) => a.id === r.id));
+  // A job that left the active list was last seen running: fetch how it actually ended.
+  const unsettled = finished.filter((j) => j.status === "queued" || j.status === "running").map((j) => j.id).join(",");
+  useEffect(() => {
+    if (!unsettled) return;
+    void Promise.all(unsettled.split(",").map((id) => api.get<JobInfo>(`/api/jobs/${id}`).catch(() => null))).then((fresh) =>
+      setRecent((prev) => prev.map((r) => fresh.find((f) => f?.id === r.id) ?? r)),
+    );
+  }, [unsettled]);
   useEffect(() => {
     if (!finished.length) return;
     const t = setTimeout(() => setRecent((prev) => prev.filter((r) => active.some((a) => a.id === r.id))), 8000);
@@ -106,6 +115,11 @@ function useActiveJobs() {
 
 function JobsIndicator() {
   const { active, finished } = useActiveJobs();
+  const qc = useQueryClient();
+  const cancel = (id: string) =>
+    void cancelJob(id)
+      .then(() => qc.invalidateQueries({ queryKey: ["jobs", "active"] }))
+      .catch((e: Error) => toast.error(e.message));
   const total = active.length;
   if (!total && !finished.length) return null;
   return (
@@ -131,6 +145,8 @@ function JobsIndicator() {
               <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
             ) : j.status === "done" ? (
               <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
+            ) : isCancelled(j) ? (
+              <CircleSlash className="mt-0.5 h-3.5 w-3.5 shrink-0 text-subtle" />
             ) : (
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
             )}
@@ -139,11 +155,16 @@ function JobsIndicator() {
                 <span className="truncate font-medium">{jobLabel(j.type)}</span>
                 <span className="shrink-0 text-[11px] text-subtle">{timeAgo(j.updated_at)}</span>
               </div>
-              <div className="truncate text-muted-foreground">{j.error ?? j.message}</div>
+              <div className="truncate text-muted-foreground">{isCancelled(j) ? "Stopped." : (j.error ?? j.message)}</div>
               {j.status === "running" || j.status === "queued" ? (
-                <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${Math.max(j.progress, 3)}%` }} />
-                </div>
+                <>
+                  <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${Math.max(j.progress, 3)}%` }} />
+                  </div>
+                  <button onClick={() => cancel(j.id)} className="mt-1 text-[12px] font-medium text-muted-foreground hover:text-foreground">
+                    Cancel
+                  </button>
+                </>
               ) : null}
             </div>
           </div>

@@ -10,6 +10,7 @@ import { PageHeader, SectionTitle, Skeleton } from "@/components/ui/misc";
 import { AddPapers, JobProgress, PaperList } from "@/components/papers";
 import { NextStepBar } from "@/components/flow";
 import { LiteratureScan } from "@/components/literature-scan";
+import { ProjectLoadError } from "@/components/load-error";
 
 export function SourcesPage() {
   const { slug = "" } = useParams();
@@ -18,7 +19,7 @@ export function SourcesPage() {
   const { jobs, watch, dismiss } = useJobs({ project_id: project.data?.id });
 
   if (project.isLoading) return <Skeleton className="h-64" />;
-  if (!project.data) return <p className="text-muted-foreground">Project not found.</p>;
+  if (!project.data) return <ProjectLoadError query={project} />;
   const p = project.data;
   const base = `/api/projects/${slug}/exemplars`;
   const readingsBase = `/api/projects/${slug}/readings`;
@@ -66,7 +67,7 @@ export function SourcesPage() {
       <div className="mt-10">
         <SectionTitle>Background reading: papers you read for this work</SectionTitle>
         <p className="mb-3 -mt-1 text-[13px] text-muted-foreground">
-          As many as you read, twenty or forty is normal. Each is read in full once and gets a reading card (question, method, result, limitation, relation to your work), about 3k tokens. The paper becomes a verified reference at once, and drafts may attribute to it what the card says, not only its abstract. Related Work is written from these cards. They never touch the pattern.
+          As many as you read, twenty or forty is normal. Each is read in full once and gets a reading card (question, method, result, limitation, relation to your work). The paper becomes a verified reference at once, and drafts may attribute to it what the card says, not only its abstract. Related Work is written from these cards. They never touch the pattern.
         </p>
         <AddPapers arxivUrl={`${readingsBase}/arxiv`} uploadUrl={`${readingsBase}/upload`} onJob={watch} />
         <JobProgress jobs={jobs.filter((j) => j.type === "ingest_reading" || j.type === "reading_card")} onDismiss={dismiss} />

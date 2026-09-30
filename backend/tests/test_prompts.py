@@ -67,3 +67,14 @@ def test_voice_filter_drops_conflicting_advice_and_states_precedence():
     assert "em dashes" not in out and "semicolons" not in out.split("House style overrides")[0]
     assert "Long, layered sentences." in out and "House style overrides the voice on hygiene" in out
     assert hygiene.filter_voice("") == ""
+
+
+def test_interview_round_addresses_the_starting_point():
+    from app.learn.context import render
+
+    base = dict(kind_name="Empirical study", spec="S", plan="", kind_rounds="R", playbook="", previous="", scan="")
+    assert "who built something and wants to write a Empirical study about it." in render("interview_round.j2", **base)
+    idea = render("interview_round.j2", entry="idea", **base)
+    assert "has not run the study yet" in idea and "built something" not in idea
+    draft = render("interview_round.j2", entry="draft", **base)
+    assert "has already written a draft" in draft and "built something" not in draft

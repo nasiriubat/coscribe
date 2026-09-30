@@ -167,7 +167,7 @@ export function KindsPage() {
                   ))}
                 </TabsList>
                 {FILES.map((f) => (
-                  <TabsContent key={f.name} value={f.name}>
+                  <TabsContent key={f.name} value={f.name} forceMount className="data-[state=inactive]:hidden">
                     <p className="mb-2 text-[12.5px] text-muted-foreground">{f.hint}</p>
                     <MarkdownEditor value={kind.data!.files[f.name] ?? ""} onSave={saveFile(f.name)} minHeight={420} />
                   </TabsContent>

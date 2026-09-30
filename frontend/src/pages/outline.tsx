@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { JobProgress } from "@/components/papers";
 import { NextStepBar } from "@/components/flow";
+import { ProjectLoadError } from "@/components/load-error";
 
 function FileEditor({ slug, name, minHeight, emptyHint }: { slug: string; name: string; minHeight: number; emptyHint: string }) {
   const qc = useQueryClient();
@@ -50,7 +51,7 @@ export function OutlinePage() {
   });
 
   if (project.isLoading) return <Skeleton className="h-64" />;
-  if (!project.data) return <p className="text-muted-foreground">Project not found.</p>;
+  if (!project.data) return <ProjectLoadError query={project} />;
   const p = project.data;
   const approved = ["outline", "drafting", "review", "export"].includes(p.stage);
   const ir = p.counts.interview_rounds;
@@ -77,7 +78,7 @@ export function OutlinePage() {
       />
 
       {!p.counts.has_spec ? (
-        <Card className="mb-4 p-4 text-[13px] text-muted-foreground">The outline needs the system specification. Paste it on the project page first.</Card>
+        <Card className="mb-4 p-4 text-[13px] text-muted-foreground">The outline needs your description of the work. <Link to={`/projects/${slug}/spec`} className="font-medium text-primary hover:underline">Write it first</Link>.</Card>
       ) : ir.rounds === 0 ? (
         <Card className="mb-4 flex items-center justify-between gap-4 p-4 text-[13px]">
           <span className="text-muted-foreground">
@@ -102,12 +103,12 @@ export function OutlinePage() {
           </TabsTrigger>
           <TabsTrigger value="facts">Facts</TabsTrigger>
         </TabsList>
-        <TabsContent value="outline">
+        <TabsContent value="outline" forceMount className="data-[state=inactive]:hidden">
           <FileEditor slug={slug} name="outline" minHeight={560} emptyHint="Generate the outline, or write it yourself. One line per paragraph." />
         </TabsContent>
-        <TabsContent value="facts">
+        <TabsContent value="facts" forceMount className="data-[state=inactive]:hidden">
           <p className="mb-2 text-[12.5px] text-muted-foreground">
-            Names, numbers and claims extracted from your spec and answers. Every draft call sees this file, which is how sections stay consistent with each other. Edit anything that is wrong.
+            Names, numbers and claims extracted from your spec and answers. Every draft reads this file, which is how sections stay consistent with each other. Edit anything that is wrong.
           </p>
           <FileEditor slug={slug} name="facts" minHeight={560} emptyHint="Facts are extracted when the outline is generated." />
         </TabsContent>

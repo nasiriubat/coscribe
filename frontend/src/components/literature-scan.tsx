@@ -127,7 +127,7 @@ export function LiteratureScan({ slug, projectId, compact }: { slug: string; pro
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-semibold">Find related papers</div>
           <p className="text-[13px] text-muted-foreground">
-            Reads your idea, research plan and specification, writes a few search queries, asks Semantic Scholar, OpenAlex and arXiv, and ranks what comes back. A few thousand tokens. You choose what to cite and what to learn from.
+            Reads your idea, research plan and specification, writes a few search queries, asks Semantic Scholar, OpenAlex and arXiv, and ranks what comes back. You choose what to cite and what to learn from.
           </p>
           {data ? (
             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[12px] text-muted-foreground">
@@ -140,7 +140,7 @@ export function LiteratureScan({ slug, projectId, compact }: { slug: string; pro
               {data.skipped_known ? <span>· {data.skipped_known} already in the project</span> : null}
               {data.errors.length ? (
                 <Tooltip content={data.errors.join("\n")}>
-                  <span className="text-warning">· {data.errors.length} index error{data.errors.length === 1 ? "" : "s"}</span>
+                  <span className="text-warning">· {data.errors.length} search{data.errors.length === 1 ? "" : "es"} got no answer</span>
                 </Tooltip>
               ) : null}
             </div>

@@ -3,6 +3,7 @@ import { Navigate, Outlet, RouterProvider, createBrowserRouter, useLocation } fr
 import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/layout/app-shell";
 import { StageProgress } from "@/components/stage-progress";
+import { RouteError } from "@/components/load-error";
 // Eager: everything needed for the first paint (sign-in, the library, the public pages).
 import { LoginPage } from "@/pages/login";
 import { ResetPasswordPage } from "@/pages/reset-password";
@@ -92,7 +93,7 @@ function Root() {
 }
 
 const router = createBrowserRouter([
-  { path: "/", element: <Root /> },
+  { path: "/", element: <Root />, errorElement: <RouteError /> },
   { path: "/landing", element: <LandingPage /> },
   { path: "/p/:slug", element: <PublicPageView /> },
   {
@@ -104,6 +105,7 @@ const router = createBrowserRouter([
   },
   {
     element: <RequireAuth />,
+    errorElement: <RouteError />,
     children: [
       { path: "/library", element: <LibraryPage /> },
       { path: "/profiles", element: <ProfilesPage /> },

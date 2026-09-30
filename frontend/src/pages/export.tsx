@@ -16,6 +16,7 @@ import { Field, Input } from "@/components/ui/input";
 import { PageHeader, SectionTitle, Skeleton } from "@/components/ui/misc";
 import { JobProgress } from "@/components/papers";
 import { NextStepBar } from "@/components/flow";
+import { ProjectLoadError } from "@/components/load-error";
 
 function AuthorsEditor({ slug }: { slug: string }) {
   const qc = useQueryClient();
@@ -160,7 +161,7 @@ export function ExportPage() {
   });
 
   if (project.isLoading) return <Skeleton className="h-64" />;
-  if (!project.data) return <p className="text-muted-foreground">Project not found.</p>;
+  if (!project.data) return <ProjectLoadError query={project} />;
   const p = project.data;
   const tools = templates.data?.tools;
   const tpls = templates.data?.templates ?? [];
@@ -175,14 +176,13 @@ export function ExportPage() {
       <PageHeader
         eyebrow={
           <span className="flex gap-2">
-            {tools ? (
-
+            {tools && user?.role === "admin" ? (
               <>
-              <Badge variant={tools?.pandoc ? "success" : "warning"}>Pandoc {tools?.pandoc ? "ready" : "missing"}</Badge>
-              <Badge variant={tools?.tectonic ? "success" : "warning"}>Tectonic {tools?.tectonic ? "ready" : "missing"}</Badge>
-
+                <Badge variant={tools.pandoc ? "success" : "warning"}>Pandoc {tools.pandoc ? "ready" : "missing"}</Badge>
+                <Badge variant={tools.tectonic ? "success" : "warning"}>Tectonic {tools.tectonic ? "ready" : "missing"}</Badge>
               </>
-
+            ) : tools && !(tools.pandoc && tools.tectonic) ? (
+              <Badge variant="warning">PDF export is not set up on this server. Ask your administrator.</Badge>
             ) : null}
           </span>
         }

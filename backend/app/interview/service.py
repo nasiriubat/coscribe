@@ -178,6 +178,7 @@ async def generate_round(project_id: str, ctx: JobContext) -> dict:
     prompt = render(
         "interview_round.j2",
         kind_name=kname,
+        entry=project.entry or "built",
         spec=budget_markdown(storage.read_text(inputs / "system-spec.md"), 14_000),
         plan=budget_markdown(storage.read_text(inputs / "research-plan.md"), 6_000),
         kind_rounds=kfiles.get("interview.md", "(no rounds defined for this kind)"),

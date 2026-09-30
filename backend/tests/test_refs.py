@@ -327,3 +327,67 @@ def test_openalex_arxiv_id_and_pdf_from_locations(monkeypatch):
 
     cands = asyncio.run(providers.openalex(FakeClient(), "q", 5))
     assert cands[0].arxiv_id == "2401.00001" and cands[0].pdf_url == "https://arxiv.org/pdf/2401.00001v2"
+
+
+def test_openalex_requires_every_word_and_relaxes_when_nothing_matches():
+    """Plain OpenAlex search ranked XGBoost first for a CI query; the filter keeps results on topic."""
+    import asyncio
+
+    from app.refs import providers
+
+    calls = []
+
+    def work(n):
+        return {"id": f"W{n}", "display_name": f"Paper {n}", "doi": None, "locations": [], "cited_by_count": 0}
+
+    class FakeResp:
+        status_code = 200
+
+        def __init__(self, results):
+            self._results = results
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"results": self._results}
+
+    class FakeClient:
+        async def get(self, url, params=None, **k):
+            calls.append(params)
+            # the full query matches one work, the relaxed one matches two more
+            return FakeResp([work(1)] if len(calls) == 1 else [work(1), work(2), work(3)])
+
+    cands = asyncio.run(providers.openalex(FakeClient(), "continuous integration, build failure: logs", 5))
+    assert "search" not in calls[0]
+    assert calls[0]["filter"] == "title_and_abstract.search:continuous integration build failure logs"
+    assert calls[1]["filter"] == "title_and_abstract.search:continuous integration failure"
+    assert [c.title for c in cands] == ["Paper 1", "Paper 2", "Paper 3"]
+
+
+def test_a_throttling_index_is_skipped_for_a_while(monkeypatch):
+    import asyncio
+
+    import httpx
+
+    from app.refs import providers
+
+    asked = {"arxiv": 0}
+
+    async def throttled_arxiv(client, q, limit):
+        asked["arxiv"] += 1
+        raise httpx.HTTPStatusError("429 from arXiv", request=None, response=None)
+
+    async def fine(client, q, limit):
+        return [providers.Candidate(title="On topic", authors=[], year=2024, source="openalex", score=1.0)]
+
+    monkeypatch.setattr(providers, "arxiv", throttled_arxiv)
+    monkeypatch.setattr(providers, "openalex", fine)
+    monkeypatch.setattr(providers, "semantic_scholar", fine)
+    monkeypatch.setattr(providers, "_cooldown_until", {})
+    first, errors1 = asyncio.run(providers.search("q"))
+    second, errors2 = asyncio.run(providers.search("q"))
+    assert asked["arxiv"] == 1  # not asked again during the cool-down
+    assert first[0].title == second[0].title == "On topic"
+    assert any("rate-limiting" in e for e in errors1)
+    assert any("skipped for a few minutes" in e for e in errors2)

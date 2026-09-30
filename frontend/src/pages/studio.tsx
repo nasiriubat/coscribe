@@ -31,6 +31,8 @@ import { useJobs } from "@/lib/jobs";
 import { useTheme } from "@/lib/theme";
 import { diffLines, diffWords } from "@/lib/diff";
 import { track } from "@/lib/events";
+import { useUnsaved } from "@/lib/unsaved";
+import { stepTitle } from "@/lib/flow";
 import { cn, timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -45,6 +47,7 @@ import { JobProgress } from "@/components/papers";
 import { ConfirmDialog } from "@/components/dialogs";
 import { RichMarkdown } from "@/components/rich-markdown";
 import { NextStepBar } from "@/components/flow";
+import { ProjectLoadError } from "@/components/load-error";
 import { CitationsPanel, citationRows } from "@/components/citations-panel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -54,6 +57,8 @@ const STATUS: Record<Section["status"], { label: string; variant: "neutral" | "p
   edited: { label: "Edited", variant: "success" },
   mine: { label: "Yours", variant: "success" },
 };
+
+const SAVE_KEYS = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘S" : "Ctrl+S";
 
 function useMediaQuery(q: string): boolean {
   const [match, setMatch] = useState(() => (typeof window !== "undefined" ? window.matchMedia(q).matches : true));
@@ -176,6 +181,7 @@ function ChecklistPanel({ slug, items, sectionTitle }: { slug: string; items: Ch
       void qc.invalidateQueries({ queryKey: ["checklist", slug] });
       void qc.invalidateQueries({ queryKey: ["project", slug] });
     },
+    onError: (e: Error) => toast.error(e.message),
   });
   const visible = items.filter((i) => showAll || i.section === sectionTitle || i.section === "Whole paper");
   const open = visible.filter((i) => i.status === "open");
@@ -446,10 +452,27 @@ export function StudioPage() {
   const section = sections.find((s) => s.id === selected) ?? null;
   const serverText = detail.data?.content ?? "";
   const dirty = !!detail.data && text !== serverText;
+  useUnsaved(dirty);
 
+  const lastKey = `pw.studio.last.${slug}`;
   useEffect(() => {
-    if (!selected && sections.length) setSelected(sections.find((s) => s.status === "empty")?.id ?? sections[0].id);
-  }, [sections, selected]);
+    if (selected || !sections.length) return;
+    let last: string | null = null;
+    try {
+      last = localStorage.getItem(lastKey);
+    } catch {
+      /* private mode: open on the first empty section instead */
+    }
+    setSelected(sections.find((s) => s.id === last)?.id ?? sections.find((s) => s.status === "empty")?.id ?? sections[0].id);
+  }, [sections, selected, lastKey]);
+  useEffect(() => {
+    if (!selected) return;
+    try {
+      localStorage.setItem(lastKey, selected);
+    } catch {
+      /* fine without storage */
+    }
+  }, [selected, lastKey]);
 
   useEffect(() => {
     if (detail.data) {
@@ -539,7 +562,7 @@ export function StudioPage() {
     mutationFn: (title: string) => api.post<StudioState & { section: Section }>(`/api/projects/${slug}/studio/sections`, { title }),
     onSuccess: (r) => {
       refresh();
-      setSelected(r.section.id);
+      void selectSection(r.section.id);
       track("section_added", { slug, meta: { title: r.section.title.slice(0, 60) } });
       toast.success(`Added “${r.section.title}”. Draft it or write it yourself.`);
     },
@@ -553,6 +576,20 @@ export function StudioPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  /** Switching section keeps the author's edits: they are saved as a version before the editor moves on. */
+  const selectSection = async (id: string) => {
+    if (id === selected) return;
+    if (dirty) {
+      try {
+        await save.mutateAsync(undefined);
+        toast.success(`Saved your edits to “${section?.title ?? "the section"}”`);
+      } catch {
+        return; // the save's own error toast explains; stay on the section
+      }
+    }
+    setSelected(id);
+  };
 
   const requestDraft = (instr = "") => {
     if (!section) return;
@@ -681,7 +718,7 @@ export function StudioPage() {
   const extensions = useMemo(() => [markdown(), EditorView.lineWrapping, lintGutter()], []);
 
   if (project.isLoading || studio.isLoading) return <Skeleton className="h-64" />;
-  if (!project.data || !studio.data) return <p className="text-muted-foreground">Project not found.</p>;
+  if (!project.data || !studio.data) return <ProjectLoadError query={project.data ? studio : project} />;
   const p = project.data;
   const approved = ["outline", "drafting", "review", "export"].includes(p.stage);
   const nextEmpty = sections.find((s) => s.status === "empty");
@@ -708,7 +745,7 @@ export function StudioPage() {
             <Badge>Not started</Badge>
           )
         }
-        title="Studio"
+        title={stepTitle("studio", p)}
         description="One section at a time, from the approved outline. Drafts use only your spec, answers and facts; gaps are marked [NEEDS]. Once you edit a section it is yours, and regeneration asks first."
         actions={
           sections.length ? (
@@ -733,7 +770,7 @@ export function StudioPage() {
             </span>
           </div>
           <div className="flex shrink-0 gap-3 pl-6 sm:pl-0">
-            <Link to={`/projects/${slug}`} className="text-[12.5px] font-medium text-primary hover:underline">
+            <Link to={`/projects/${slug}?settings=1`} className="text-[12.5px] font-medium text-primary hover:underline">
               Choose in Project settings
             </Link>
             <button onClick={hideVoiceHint} className="text-[12.5px] text-subtle hover:text-foreground">
@@ -806,10 +843,10 @@ export function StudioPage() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-[230px_minmax(0,1fr)_320px]">
           <aside className="hidden lg:sticky lg:top-6 lg:block lg:self-start">
-            <SectionRail sections={sections} selected={selected} onSelect={setSelected} />
+            <SectionRail sections={sections} selected={selected} onSelect={(id) => void selectSection(id)} />
           </aside>
           <div className="lg:hidden">
-            <Select value={selected ?? undefined} onValueChange={setSelected}>
+            <Select value={selected ?? undefined} onValueChange={(id) => void selectSection(id)}>
               <SelectTrigger>
                 <SelectValue placeholder="Choose a section" />
               </SelectTrigger>
@@ -927,7 +964,7 @@ export function StudioPage() {
                     className="text-[14px] [&_.cm-editor]:bg-transparent [&_.cm-content]:px-3 [&_.cm-content]:py-3 [&_.cm-content]:font-sans [&_.cm-content]:leading-[1.7] [&_.cm-focused]:outline-none [&_.cm-gutters]:bg-transparent [&_.cm-gutters]:border-0"
                   />
                 )}
-                {dirty ? <div className="border-t border-border bg-warning-soft/40 px-3 py-1.5 text-[12px] text-warning">Unsaved changes. ⌘S or Save.</div> : null}
+                {dirty ? <div className="border-t border-border bg-warning-soft/40 px-3 py-1.5 text-[12px] text-warning">Unsaved changes. {SAVE_KEYS} or Save.</div> : null}
               </Card>
             ) : (
               <Skeleton className="h-[520px]" />

@@ -155,7 +155,7 @@ function EvidenceCard({ slug, row }: { slug: string; row: CitationRow }) {
             <Button size="sm" variant="secondary" onClick={() => check.mutate()} loading={check.isPending}>
               <ShieldCheck className="h-3.5 w-3.5" /> Check
             </Button>
-            <span className="text-[12px] text-subtle">One short model call, about 1k tokens.</span>
+            <span className="text-[12px] text-subtle">A quick check by the model.</span>
           </div>
         )}
       </Step>
