@@ -91,6 +91,9 @@ async def ingest_arxiv(root: Path, arxiv_id: str, ctx: JobContext) -> dict:
             "word_count": result["word_count"],
             "source": result["source"],
         }
+    except asyncio.CancelledError:
+        shutil.rmtree(folder, ignore_errors=True)  # a stopped ingest leaves no half-read paper behind
+        raise
     except Exception as e:
         _write_failed(folder, f"{type(e).__name__}: {e}")
         raise
@@ -109,6 +112,9 @@ async def ingest_pdf(root: Path, data: bytes, filename: str, ctx: JobContext) ->
         )
         ctx.progress(100, f"Ingested {result['title'][:80]}")
         return {"id": folder.name, "title": result["title"], "word_count": result["word_count"], "source": "pdf"}
+    except asyncio.CancelledError:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
     except Exception as e:
         _write_failed(folder, f"{type(e).__name__}: {e}")
         raise

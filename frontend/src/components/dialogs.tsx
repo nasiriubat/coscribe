@@ -165,6 +165,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel = "Delete",
+  cancelLabel = "Cancel",
   onConfirm,
   busy,
 }: {
@@ -173,6 +174,7 @@ export function ConfirmDialog({
   title: string;
   description: string;
   confirmLabel?: string;
+  cancelLabel?: string;
   onConfirm: () => void;
   busy?: boolean;
 }) {
@@ -181,7 +183,7 @@ export function ConfirmDialog({
       <DialogContent title={title} description={description} className="max-w-md">
         <DialogFooter className="mt-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {cancelLabel}
           </Button>
           <Button variant="destructive" onClick={onConfirm} loading={busy}>
             {confirmLabel}

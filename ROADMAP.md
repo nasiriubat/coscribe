@@ -228,6 +228,38 @@ Still deferred (enhancement, not a fix): **cost shown in currency** in the Usage
 It needs a per-model `$/1M tokens` table, and provider prices drift, so it was left rather
 than shipped with stale numbers. Token counts per call/provider/project are already tracked.
 
+## 15. Convenience round and UI audit (30 September 2026, branch fix/convenience)
+
+**Audit** (every screen at 1440 and 390 px, newcomer, experienced and draft-first projects).
+Verdict: visually calm, one primary action on most screens, no screen overwhelming in density.
+What confused was orientation and wording, not volume.
+
+**Done:**
+- Unsaved work: one guard in the app shell (`lib/unsaved.ts`, `components/unsaved-guard.tsx`)
+  asks before in-app navigation and on reload; the Studio saves on section switch and reopens
+  on the last section; tabbed editors stay mounted.
+- Guided path: Skip for now on Sources, Learn the pattern and Interview (`lib/skips.ts`,
+  per browser); draft-first projects go spec, then Studio.
+- Jobs: Cancel on every running row and in the top-bar list; a cancelled ingest removes its
+  half-read paper; a stopped voice run no longer stays "learning".
+- Errors: `ProjectLoadError` with Try again replaces twelve bare "Project not found."; a
+  route error page with Reload.
+- Orientation: the strip marks the step you are on; the footer says "Still open from earlier"
+  when it points back; one name per step (Sources, Learn the pattern, Draft in the Studio).
+- Members: `GET /api/auth/workspace` and a Library banner when no model is connected.
+- Wording: token and call counts removed from member copy; Pandoc and Tectonic badges for
+  admins only; the interview prompt is told the project's starting point.
+- 99 backend tests pass.
+
+**Found in the audit, not done (structural, needs a decision):**
+1. Sources holds three ideas on one page: find related papers, example papers, background
+   reading. Newcomers meet two identical "add a paper" boxes.
+2. No explanation of research terms anywhere (gap, contribution, threats to validity).
+3. Icon-only buttons (lock, versions, cite, open, delete) have hover-only hints; nothing on touch.
+4. The Studio shows two primary buttons for the same action (Draft next and Draft).
+5. Lint underlines a whole paragraph when the paragraph is one line.
+6. Review findings do not link to their section.
+
 ## Needed from the workspace owner
 - VPS or server with a domain, and who administers it.
 - Semantic Scholar API key (free) and an SMTP account for the app's mail.

@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/dialogs";
 import { NextStepBar } from "@/components/flow";
 import { LiteratureScan } from "@/components/literature-scan";
+import { ProjectLoadError } from "@/components/load-error";
 
 function authorsLine(a: string[] | undefined, max = 3): string {
   if (!a?.length) return "";
@@ -210,7 +211,7 @@ export function ReferencesPage() {
   }, [fromUrl]);
 
   if (project.isLoading) return <Skeleton className="h-64" />;
-  if (!project.data) return <p className="text-muted-foreground">Project not found.</p>;
+  if (!project.data) return <ProjectLoadError query={project} />;
   const p = project.data;
   const list = refs.data ?? [];
   const reqs = requests.data ?? [];

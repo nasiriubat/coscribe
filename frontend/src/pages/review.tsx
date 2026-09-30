@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState, PageHeader, SectionTitle, Skeleton } from "@/components/ui/misc";
 import { JobProgress } from "@/components/papers";
 import { NextStepBar } from "@/components/flow";
+import { ProjectLoadError } from "@/components/load-error";
 
 const VERDICT: Record<string, { label: string; variant: "success" | "primary" | "warning" | "destructive" }> = {
   accept: { label: "Accept", variant: "success" },
@@ -57,7 +58,7 @@ export function ReviewPage() {
   });
 
   if (project.isLoading || state.isLoading) return <Skeleton className="h-64" />;
-  if (!project.data) return <p className="text-muted-foreground">Project not found.</p>;
+  if (!project.data) return <ProjectLoadError query={project} />;
   const p = project.data;
   const review = state.data?.review ?? null;
   const venues = state.data?.venues ?? null;

@@ -15,6 +15,7 @@ import { EmptyState, PageHeader, ProgressRing, SectionTitle, Skeleton } from "@/
 import { JobProgress } from "@/components/papers";
 import { Markdown } from "@/components/markdown";
 import { NextStepBar } from "@/components/flow";
+import { ProjectLoadError } from "@/components/load-error";
 
 function QuestionCard({ q, slug, onSaved }: { q: InterviewQuestion; slug: string; onSaved: (s: InterviewState) => void }) {
   const [answer, setAnswer] = useState(q.answer);
@@ -123,6 +124,7 @@ function ChatPanel({ slug, onPinned }: { slug: string; onPinned: () => void }) {
   const clear = useMutation({
     mutationFn: () => api.delete(`/api/projects/${slug}/chat`),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["chat", slug] }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   useEffect(() => {
@@ -217,7 +219,7 @@ export function InterviewPage() {
   };
 
   if (project.isLoading || interview.isLoading) return <Skeleton className="h-64" />;
-  if (!project.data || !interview.data) return <p className="text-muted-foreground">Project not found.</p>;
+  if (!project.data || !interview.data) return <ProjectLoadError query={project.data ? interview : project} />;
   const p = project.data;
   const st = interview.data;
   const all = st.rounds.flatMap((r) => r.questions);
@@ -262,11 +264,11 @@ export function InterviewPage() {
           {!p.counts.has_spec ? (
             <EmptyState
               icon={<Sparkles />}
-              title="Write the system specification first"
-              description="The interview reads your spec so it can skip what you already said. Paste it on the project page."
+              title="Describe the work first"
+              description="The interview reads your description so it can skip what you already said."
               action={
-                <Link to={`/projects/${slug}`} className="text-[13px] font-medium text-primary hover:underline">
-                  Back to the project
+                <Link to={`/projects/${slug}/spec`} className="text-[13px] font-medium text-primary hover:underline">
+                  Go to that step
                 </Link>
               }
             />

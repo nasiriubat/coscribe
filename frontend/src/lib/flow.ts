@@ -1,4 +1,5 @@
 import type { Project } from "./types";
+import { skippedSteps } from "./skips";
 
 /**
  * One place that decides what a project needs next. Every screen that shows guidance
@@ -46,7 +47,7 @@ export const STEPS: Step[] = [
   },
   {
     key: "sources",
-    title: "Add example papers",
+    title: "Sources",
     to: (s) => `/projects/${s}/sources`,
     state: (p) => (p.counts.exemplars > 0 ? "done" : p.entry === "draft" ? "optional" : "todo"),
     summary: (p) =>
@@ -70,7 +71,7 @@ export const STEPS: Step[] = [
     state: (p) =>
       p.counts.interview_rounds.done || (p.counts.interview_rounds.rounds > 0 && p.counts.interview_rounds.open === 0)
         ? "done"
-        : p.entry === "draft" && p.counts.sections > 0 && p.counts.interview_rounds.rounds === 0
+        : p.entry === "draft" && p.counts.interview_rounds.rounds === 0
           ? "optional"
           : p.counts.has_spec
             ? "todo"
@@ -79,7 +80,7 @@ export const STEPS: Step[] = [
       const ir = p.counts.interview_rounds;
       if (ir.done) return `Complete: ${ir.answered} answers over ${ir.rounds} rounds.`;
       if (ir.rounds) return `${ir.answered} answered, ${ir.open} open, ${ir.rounds} round${ir.rounds === 1 ? "" : "s"}.`;
-      if (p.entry === "draft" && p.counts.sections > 0) return "Optional for an imported draft. Useful when the reviewer says a section lacks substance.";
+      if (p.entry === "draft") return "Optional for a draft you already wrote. Useful when the reviewer says a section lacks substance.";
       return "The model asks only what the paper still lacks.";
     },
   },
@@ -87,12 +88,20 @@ export const STEPS: Step[] = [
     key: "outline",
     title: "Outline",
     to: (s) => `/projects/${s}/outline`,
-    state: (p) => (approvedStages.includes(p.stage) ? "done" : p.counts.has_spec ? "todo" : "locked"),
-    summary: (p) => (approvedStages.includes(p.stage) ? "Approved." : p.counts.has_outline ? "Draft outline written. Approve it to unlock drafting." : "One line per paragraph. You approve it before drafting."),
+    state: (p) =>
+      approvedStages.includes(p.stage) ? "done" : !p.counts.has_spec ? "locked" : p.entry === "draft" && !p.counts.has_outline ? "optional" : "todo",
+    summary: (p) =>
+      approvedStages.includes(p.stage)
+        ? "Approved."
+        : p.counts.has_outline
+          ? "Draft outline written. Approve it to unlock drafting."
+          : p.entry === "draft"
+            ? "Optional for a draft you already wrote. Your pasted sections become the outline."
+            : "One line per paragraph. You approve it before drafting.",
   },
   {
     key: "studio",
-    title: "Draft the paper",
+    title: "Draft in the Studio",
     to: (s) => `/projects/${s}/studio`,
     state: (p) =>
       p.counts.sections > 0 && p.counts.sections_drafted === p.counts.sections
@@ -105,7 +114,9 @@ export const STEPS: Step[] = [
         ? `${p.counts.sections_drafted} of ${p.counts.sections} sections drafted${p.counts.checklist_open ? `, ${p.counts.checklist_open} open item${p.counts.checklist_open === 1 ? "" : "s"}` : ""}.`
         : approvedStages.includes(p.stage)
           ? "Section by section, from the approved outline."
-          : "Needs an approved outline.",
+          : p.entry === "draft"
+            ? "Paste your draft. Every heading becomes a section marked as yours."
+            : "Needs an approved outline.",
   },
   {
     key: "references",
@@ -160,10 +171,41 @@ export function orderedSteps(p: Project): Step[] {
   return STEPS;
 }
 
+/** Steps the guided path recommends but a paper can do without. The author may skip them. */
+const SKIPPABLE: StepKey[] = ["sources", "playbook", "interview"];
+
+/** What skipping a step costs, in one line, shown beside the Skip button. */
+const SKIP_COST: Partial<Record<StepKey, string>> = {
+  sources: "Without example papers there is no learned pattern; drafts follow the paper type's defaults.",
+  playbook: "Without a learned pattern, drafts follow the paper type's defaults.",
+  interview: "Without the interview the outline has more [NEEDS] gaps for you to fill.",
+};
+
+export function isSkipped(step: Step, p: Project): boolean {
+  return SKIPPABLE.includes(step.key) && skippedSteps(p.slug).includes(step.key);
+}
+
+/** The skip cost line when this step is still waiting and may be skipped, otherwise null. */
+export function skipCost(step: Step, p: Project): string | null {
+  const raw = step.state(p);
+  return SKIPPABLE.includes(step.key) && (raw === "todo" || raw === "current") ? (SKIP_COST[step.key] ?? null) : null;
+}
+
+/** A step's state for this project, with the author's skips applied. */
+function stateOf(step: Step, p: Project): StepState {
+  const raw = step.state(p);
+  return (raw === "todo" || raw === "current") && isSkipped(step, p) ? "optional" : raw;
+}
+
 /** Step title as this project should read it. */
 export function titleFor(step: Step, p: Project): string {
   if (step.key === "spec" && p.entry !== "built") return "Describe the work";
   return step.title;
+}
+
+/** Title of a step by key: pages use it as their heading so a step has one name everywhere. */
+export function stepTitle(key: StepKey, p: Project): string {
+  return titleFor(STEPS.find((s) => s.key === key)!, p);
 }
 
 /** Whether a step is optional for this project. */
@@ -176,7 +218,7 @@ export function isOptional(step: Step, p: Project): boolean {
 /** The single step the user should do next. */
 export function nextStep(p: Project): Step | null {
   for (const s of orderedSteps(p)) {
-    const st = s.state(p);
+    const st = stateOf(s, p);
     if (st === "current" || st === "todo") return s;
   }
   return null;
@@ -186,7 +228,7 @@ export function nextStep(p: Project): Step | null {
 export function stepStates(p: Project): Array<{ step: Step; state: StepState }> {
   const next = nextStep(p);
   return orderedSteps(p).map((step) => {
-    let state = step.state(p);
+    let state = stateOf(step, p);
     if (next && step.key === next.key) state = "current";
     else if (state === "current") state = "todo";
     return { step, state };
@@ -200,8 +242,14 @@ export function stepAfter(p: Project, key: StepKey): Step | null {
   const next = nextStep(p);
   if (next && next.key !== key) return next;
   for (const s of steps.slice(idx + 1)) {
-    const st = s.state(p);
-    if (st !== "soon" && st !== "done") return s;
+    const st = stateOf(s, p);
+    if (st !== "soon" && st !== "done" && st !== "locked") return s;
   }
   return null;
+}
+
+/** True when `other` comes before `key` in this project's order: the footer then says "still open earlier". */
+export function isEarlier(p: Project, other: StepKey, key: StepKey): boolean {
+  const keys = orderedSteps(p).map((s) => s.key);
+  return keys.indexOf(other) < keys.indexOf(key);
 }

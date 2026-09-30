@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/dialogs";
 import { NextStepBar } from "@/components/flow";
 import { ResultsTables } from "@/components/results-tables";
+import { ProjectLoadError } from "@/components/load-error";
 
 function ensureMermaid(dark: boolean) {
   // htmlLabels off: plain SVG text rasterises to PNG; foreignObject labels taint the canvas.
@@ -238,7 +239,7 @@ function NewMermaidDialog({ slug, open, onOpenChange, onCreated }: { slug: strin
             <Field label="Caption">
               <Input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Overview of the system components and data flow." />
             </Field>
-            <Field label="Ask the model (optional)" hint="Uses only your spec and facts. One small call.">
+            <Field label="Ask the model (optional)" hint="Uses only your spec and facts.">
               <div className="flex gap-2">
                 <Input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="e.g. focus on the ranking pipeline" />
                 <Button type="button" variant="secondary" onClick={() => gen.mutate()} loading={gen.isPending}>
@@ -297,10 +298,11 @@ export function FiguresPage() {
       setDel(null);
       setEditing(null);
     },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   if (project.isLoading) return <Skeleton className="h-64" />;
-  if (!project.data) return <p className="text-muted-foreground">Project not found.</p>;
+  if (!project.data) return <ProjectLoadError query={project} />;
   const p = project.data;
   const list = figures.data ?? [];
   const current = list.find((f) => f.name === editing) ?? null;

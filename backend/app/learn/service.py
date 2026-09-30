@@ -152,6 +152,15 @@ async def learn_playbook(project_id: str, ctx: JobContext, *, max_chars_per_pape
 # ------------------------------------------------------------------ author profile
 
 
+def settle_profile_status(profile_id: str) -> None:
+    """After a learn run that was stopped or failed: show what is on disk instead of "learning" forever."""
+    with SessionLocal() as db:
+        p = db.get(AuthorProfile, profile_id)
+        if p and p.status == "learning":
+            p.status = "ready" if storage.read_text(storage.profile_dir(p.slug) / "style.md").strip() else "empty"
+            db.commit()
+
+
 async def learn_profile(profile_id: str, ctx: JobContext, *, max_chars_per_paper: int, concurrency: int = 3) -> dict:
     with SessionLocal() as db:
         prof = db.get(AuthorProfile, profile_id)

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronLeft, Settings2, Trash2 } from "lucide-react";
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ConfirmDialog } from "@/components/dialogs";
 import { NextUp, Stepper } from "@/components/flow";
 import { projectProgress } from "./library";
+import { ProjectLoadError } from "@/components/load-error";
 
 const NONE = "__none__";
 
@@ -133,7 +134,13 @@ export function ProjectHomePage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const project = useQuery({ queryKey: ["project", slug], queryFn: () => api.get<Project>(`/api/projects/${slug}`) });
-  const [settings, setSettings] = useState(false);
+  // "?settings=1" opens the dialog, so other pages can link straight to a project's settings.
+  const [params, setParams] = useSearchParams();
+  const [settings, setSettingsOpen] = useState(params.get("settings") === "1");
+  const setSettings = (open: boolean) => {
+    setSettingsOpen(open);
+    if (!open && params.has("settings")) setParams({}, { replace: true });
+  };
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const del = useMutation({
@@ -155,7 +162,7 @@ export function ProjectHomePage() {
       </div>
     );
   }
-  if (!project.data) return <p className="text-muted-foreground">Project not found.</p>;
+  if (!project.data) return <ProjectLoadError query={project} />;
   const p = project.data;
 
   return (

@@ -14,6 +14,7 @@ import { PageHeader, SectionTitle, Skeleton } from "@/components/ui/misc";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { JobProgress } from "@/components/papers";
 import { NextStepBar } from "@/components/flow";
+import { ProjectLoadError } from "@/components/load-error";
 
 type Mode = "refine" | "explore";
 
@@ -40,7 +41,7 @@ export function DesignPage() {
   };
 
   if (project.isLoading) return <Skeleton className="h-64" />;
-  if (!project.data) return <p className="text-muted-foreground">Project not found.</p>;
+  if (!project.data) return <ProjectLoadError query={project} />;
   const p = project.data;
   const hasIdea = !!idea.data?.content.trim();
 

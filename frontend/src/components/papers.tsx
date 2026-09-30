@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertCircle, CheckCircle2, ExternalLink, FileText, Loader2, Plus, Quote, Trash2, Upload, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, CircleSlash, ExternalLink, FileText, Loader2, Plus, Quote, Trash2, Upload, X } from "lucide-react";
 import { api } from "@/lib/api";
-import { jobLabel } from "@/lib/jobs";
+import { cancelJob, isCancelled, jobLabel } from "@/lib/jobs";
 import type { JobInfo, Paper, PaperDetail } from "@/lib/types";
 import { cn, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -21,12 +21,13 @@ export function JobProgress({ jobs, onDismiss }: { jobs: JobInfo[]; onDismiss: (
     <div className="mb-4 flex flex-col gap-2">
       {jobs.map((j) => {
         const running = j.status === "queued" || j.status === "running";
+        const cancelled = isCancelled(j);
         return (
           <div
             key={j.id}
             className={cn(
               "card-surface flex items-center gap-3 px-4 py-2.5 text-[13px]",
-              j.status === "failed" && "border-destructive/40 bg-destructive-soft/40",
+              j.status === "failed" && !cancelled && "border-destructive/40 bg-destructive-soft/40",
               j.status === "done" && "border-success/30",
             )}
           >
@@ -34,13 +35,15 @@ export function JobProgress({ jobs, onDismiss }: { jobs: JobInfo[]; onDismiss: (
               <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
             ) : j.status === "done" ? (
               <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+            ) : cancelled ? (
+              <CircleSlash className="h-4 w-4 shrink-0 text-subtle" />
             ) : (
               <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
             )}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="font-medium">{jobLabel(j.type)}</span>
-                <span className="truncate text-muted-foreground">{j.error ?? j.message}</span>
+                <span className="truncate text-muted-foreground">{cancelled ? "Stopped." : (j.error ?? j.message)}</span>
               </div>
               {running ? (
                 <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
@@ -48,11 +51,18 @@ export function JobProgress({ jobs, onDismiss }: { jobs: JobInfo[]; onDismiss: (
                 </div>
               ) : null}
             </div>
-            {!running ? (
+            {running ? (
+              <button
+                onClick={() => void cancelJob(j.id).catch((e: Error) => toast.error(e.message))}
+                className="shrink-0 rounded px-2 py-1 text-[12.5px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                Cancel
+              </button>
+            ) : (
               <button onClick={() => onDismiss(j.id)} className="rounded p-1 text-subtle hover:bg-muted hover:text-foreground" aria-label="Dismiss">
                 <X className="h-3.5 w-3.5" />
               </button>
-            ) : null}
+            )}
           </div>
         );
       })}

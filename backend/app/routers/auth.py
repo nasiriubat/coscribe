@@ -11,7 +11,8 @@ from .. import mail
 from ..config import get_settings
 from ..db import get_db
 from ..deps import current_user, get_session
-from ..models import AuthSession, PasswordReset, User, now
+from ..llm.base import PURPOSES
+from ..models import AuthSession, PasswordReset, Provider, PurposeAssignment, User, now
 from ..schemas import ChangePasswordIn, ForgotIn, LoginIn, ResetIn, UpdateMeIn, UserOut
 from ..security import (
     CSRF_COOKIE,
@@ -89,6 +90,20 @@ def logout(response: Response, sess: AuthSession | None = Depends(get_session), 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(current_user)):
     return user
+
+
+@router.get("/workspace")
+def workspace(_: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Whether model jobs can run yet, so a member is told why nothing drafts instead of meeting errors."""
+    ready = True
+    for purpose in PURPOSES:
+        a = db.get(PurposeAssignment, purpose)
+        prov = db.get(Provider, a.provider_id) if a and a.provider_id else None
+        if not (a and a.model and prov and prov.enabled):
+            ready = False
+            break
+    admin = db.scalar(select(User).where(User.role == "admin", User.is_active.is_(True)).order_by(User.created_at))
+    return {"ready": ready, "admin_name": admin.display_name if admin else None}
 
 
 @router.patch("/me", response_model=UserOut)

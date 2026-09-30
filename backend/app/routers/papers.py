@@ -218,10 +218,14 @@ async def learn_voice(
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Slow down")
     budget = _learn_budget(body)
     job = create_job(db, user_id=user.id, type="learn_profile", profile_id=p.id, message="Queued")
-    start_job(
-        job,
-        lambda ctx: learn.learn_profile(
-            p.id, ctx, max_chars_per_paper=budget, concurrency=get_settings().learn_concurrency
-        ),
-    )
+    profile_id, concurrency = p.id, get_settings().learn_concurrency
+
+    async def run(ctx):
+        try:
+            return await learn.learn_profile(profile_id, ctx, max_chars_per_paper=budget, concurrency=concurrency)
+        except BaseException:  # includes a Cancel from the UI
+            learn.settle_profile_status(profile_id)
+            raise
+
+    start_job(job, run)
     return job_dict(job)

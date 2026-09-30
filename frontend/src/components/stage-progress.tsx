@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { Project } from "@/lib/types";
 import { type StepKey, stepStates, titleFor } from "@/lib/flow";
+import { useSkipped } from "@/lib/skips";
 import { cn } from "@/lib/utils";
 
 /**
@@ -22,6 +23,7 @@ export function StageProgress() {
     enabled: !!slug,
     staleTime: 30_000,
   });
+  useSkipped(slug ?? "");
   if (!m || !stepKey || !project.data) return null;
   const p = project.data;
   const rows = stepStates(p);
@@ -39,13 +41,17 @@ export function StageProgress() {
           All steps
         </Link>
       </div>
-      <div className="flex gap-1">
+      <div className="flex items-center gap-1">
         {rows.map(({ step, state }) => {
           const clickable = state !== "locked" && state !== "soon";
+          const here = step.key === stepKey;
           const seg = (
             <span
+              aria-current={here ? "step" : undefined}
               className={cn(
-                "block h-1.5 rounded-full transition-colors",
+                "block rounded-full transition-colors",
+                // The page you are on is the thick segment; colour still says done, next or waiting.
+                here ? "h-2.5 ring-2 ring-foreground/25 ring-offset-1 ring-offset-card" : "h-1.5",
                 state === "done" && "bg-success",
                 state === "current" && "bg-primary",
                 (state === "todo" || state === "optional") && "bg-border-strong",

@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/card";
 import { PageHeader, Skeleton } from "@/components/ui/misc";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { NextStepBar } from "@/components/flow";
+import { ProjectLoadError } from "@/components/load-error";
+import { stepTitle } from "@/lib/flow";
 
 /** The research plan is planned work; the specification describes it as the study to be run. */
 function planToSpec(plan: string): string {
@@ -28,7 +30,7 @@ export function SpecPage() {
   };
 
   if (project.isLoading) return <Skeleton className="h-64" />;
-  if (!project.data) return <p className="text-muted-foreground">Project not found.</p>;
+  if (!project.data) return <ProjectLoadError query={project} />;
   const p = project.data;
 
   return (
@@ -37,7 +39,7 @@ export function SpecPage() {
         <ChevronLeft className="h-3.5 w-3.5" /> {p.title}
       </Link>
       <PageHeader
-        title={p.entry === "built" ? "What you built" : "What the paper is about"}
+        title={stepTitle("spec", p)}
         description={
           p.entry === "idea"
             ? "The specification of what you will build or study, grown from the research plan. The interview reads it to skip what you already said, and the draft may only state what is in here, in your answers, or in the facts."

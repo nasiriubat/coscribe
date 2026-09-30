@@ -45,6 +45,30 @@ def test_ingest_job_runs_on_event_loop(client, admin, monkeypatch):
     client.delete(f"/api/projects/{slug}", headers=admin)
 
 
+def test_running_job_can_be_cancelled(client, admin, monkeypatch):
+    """Cancel stops the job, records it as cancelled and frees the project for the next one."""
+    import asyncio
+
+    async def slow(root, arxiv_id, ctx):
+        ctx.progress(10, "working")
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(ingest_service, "ingest_arxiv", slow)
+    r = client.post("/api/projects", headers=admin, json={"title": "Cancel test", "kind": "tool-paper"})
+    slug = r.json()["slug"]
+    r = client.post(f"/api/projects/{slug}/exemplars/arxiv", headers=admin, json={"ref": "2405.15793"})
+    job_id = r.json()["id"]
+    deadline = time.time() + 5
+    while client.get(f"/api/jobs/{job_id}").json()["status"] != "running" and time.time() < deadline:
+        time.sleep(0.05)
+    assert client.post(f"/api/jobs/{job_id}/cancel", headers=admin).json() == {"cancelled": True}
+    job = _wait(client, job_id)
+    assert job["status"] == "failed" and job["error"] == "Cancelled"
+    # a finished job cannot be cancelled again
+    assert client.post(f"/api/jobs/{job_id}/cancel", headers=admin).json() == {"cancelled": False}
+    client.delete(f"/api/projects/{slug}", headers=admin)
+
+
 def test_learn_requires_exemplars(client, admin):
     r = client.post("/api/projects", headers=admin, json={"title": "Learn test", "kind": "tool-paper"})
     slug = r.json()["slug"]
@@ -53,3 +77,44 @@ def test_learn_requires_exemplars(client, admin):
     job = _wait(client, r.json()["id"])
     assert job["status"] == "failed" and "No ingested exemplars" in job["error"]
     client.delete(f"/api/projects/{slug}", headers=admin)
+
+
+def test_stopped_ingest_leaves_no_half_read_paper(client, tmp_path, monkeypatch):
+    """A cancelled ingest must not leave a paper stuck at "processing" that then counts as an example."""
+    import asyncio
+
+    import pytest
+
+    from app.ingest import extract
+    from app.jobs import JobContext
+
+    def stopped(*args, **kwargs):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(extract, "extract_pdf", stopped)
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(ingest_service.ingest_pdf(tmp_path, b"%PDF-1.4", "paper.pdf", JobContext("no-job", "no-user")))
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_stopped_voice_learning_does_not_stay_learning(client, admin):
+    from app.db import SessionLocal
+    from app.learn import service as learn_service
+    from app.models import AuthorProfile
+
+    slug = client.post("/api/profiles", headers=admin, json={"name": "Stopped voice"}).json()["slug"]
+    pid = client.get(f"/api/profiles/{slug}").json()["id"]
+
+    def set_learning():
+        with SessionLocal() as db:
+            db.get(AuthorProfile, pid).status = "learning"
+            db.commit()
+
+    set_learning()
+    learn_service.settle_profile_status(pid)
+    assert client.get(f"/api/profiles/{slug}").json()["status"] == "empty"
+    client.put(f"/api/profiles/{slug}/style", headers=admin, json={"content": "Short sentences."})
+    set_learning()
+    learn_service.settle_profile_status(pid)
+    assert client.get(f"/api/profiles/{slug}").json()["status"] == "ready"
+    client.delete(f"/api/profiles/{slug}", headers=admin)

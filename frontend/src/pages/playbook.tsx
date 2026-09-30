@@ -15,6 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { BUDGETS, JobProgress } from "@/components/papers";
 import { NextStepBar } from "@/components/flow";
+import { ProjectLoadError } from "@/components/load-error";
+import { stepTitle } from "@/lib/flow";
 
 const FILES = [
   { key: "structure", label: "Structure", hint: "Section order, purpose and length." },
@@ -44,7 +46,7 @@ export function BudgetPicker({ value, onChange, disabled }: { value: number; onC
           </div>
           <div className="mt-0.5 text-[12px] leading-snug text-muted-foreground">{b.hint}</div>
           <div className="mt-1 text-[11px] tabular-nums text-subtle">
-            about {b.tokens}k tokens per paper · {b.minutes} min for ten papers
+            {b.minutes} min for ten papers · about {b.tokens}k tokens per paper
           </div>
         </button>
       ))}
@@ -72,7 +74,7 @@ export function PlaybookPage() {
   });
 
   if (project.isLoading) return <Skeleton className="h-64" />;
-  if (!project.data) return <p className="text-muted-foreground">Project not found.</p>;
+  if (!project.data) return <ProjectLoadError query={project} />;
   const p = project.data;
   const learned = p.counts.playbook_files > 0;
   const result = lastResult?.result as { papers?: number; tokens_in?: number; tokens_out?: number } | null;
@@ -84,7 +86,7 @@ export function PlaybookPage() {
       </Link>
       <PageHeader
         eyebrow={learned ? <Badge variant="success">{p.counts.playbook_files} of 5 files learned</Badge> : <Badge>Not learned yet</Badge>}
-        title="Pattern"
+        title={stepTitle("playbook", p)}
         description="How papers like your example papers are built: structure, argument, evidence, related work and venue. Learned once, then yours to edit."
       />
 
@@ -96,7 +98,7 @@ export function PlaybookPage() {
           <div className="min-w-0 flex-1">
             <h3 className="text-[14.5px] font-semibold">{learned ? "Learn again" : "Learn from example papers"}</h3>
             <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-              One summary call per paper, then one synthesis call. The budget caps how much of each paper the model reads; every section is still represented.
+              The model reads each paper once, then writes the pattern from its notes. The budget caps how much of each paper it reads; every section is still represented.
               {p.counts.exemplars ? ` ${p.counts.exemplars} example paper${p.counts.exemplars === 1 ? "" : "s"} ready.` : " Add example papers on the Sources page first."}
             </p>
             <div className="mt-4">
@@ -132,7 +134,7 @@ export function PlaybookPage() {
           ))}
         </TabsList>
         {FILES.map((f) => (
-          <TabsContent key={f.key} value={f.key}>
+          <TabsContent key={f.key} value={f.key} forceMount className="data-[state=inactive]:hidden">
             <p className="mb-2 text-[12.5px] text-muted-foreground">{f.hint}</p>
             <PlaybookFile slug={slug} fileKey={f.key} />
           </TabsContent>
