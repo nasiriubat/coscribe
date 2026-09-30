@@ -295,7 +295,8 @@ async def rewrite(project_id: str, sentence: str, user_id: str | None) -> dict:
     data = extract_json(result.text)
     new = str(data.get("sentence", "")).strip()
     known = refs.keys(root)
-    used = re.findall(r"\[@([^\]\s;]+)", new)
+    # every key in every [@a; @b] group: checking only the first let an invented second key through
+    used = [k for group in re.findall(r"\[(@[^\]]+)\]", new) for k in re.findall(r"@([^\s;,\]]+)", group)]
     if not new or any(k not in known for k in used):
         gist = re.sub(r"\s+", " ", sentence.strip())[:90].rstrip(".")
         new = f"{sentence.strip().rstrip('.')} [CITE: {gist}]."

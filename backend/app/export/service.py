@@ -23,6 +23,11 @@ from ..figures import service as figures
 from ..jobs import JobContext
 from ..studio import service as studio
 
+# One Tectonic at a time: its package cache is shared, and on a fresh volume three exports
+# started together failed with "font cmr10 not loadable" while each downloaded the same files.
+_TECTONIC_LOCK = asyncio.Lock()
+_FIG_SIZE = "width=\\linewidth,height=0.4\\textheight,keepaspectratio"
+
 _CITE = re.compile(r"\[(@[^\]]+)\]")
 _NEEDS = re.compile(r"\[NEEDS:\s*([^\]]+)\]")
 _CITEP = re.compile(r"\[CITE:\s*([^\]]+)\]")
@@ -235,7 +240,7 @@ def _fallback_md_to_latex(md: str) -> str:
             cap, name = fm.group(1), fm.group(2)
             label = fm.group(4) or name
             out.append(
-                f"\\begin{{figure}}[t]\\centering\\includegraphics[width=\\linewidth]{{figures/{name}.png}}\\caption{{{_tex_escape(cap)}}}\\label{{fig:{label}}}\\end{{figure}}"
+                f"\\begin{{figure}}[t]\\centering\\includegraphics[{_FIG_SIZE}]{{figures/{name}.png}}\\caption{{{_tex_escape(cap)}}}\\label{{fig:{label}}}\\end{{figure}}"
             )
             continue
         if re.match(r"^\s*[-*]\s+", line):
@@ -304,7 +309,9 @@ def markdown_to_latex(md: str, workdir: Path) -> tuple[str, str]:
             tex = tex.replace("\\includesvg", "\\includegraphics")
             # graphicx's alt= key is newer than many TeX distributions; drop it.
             tex = re.sub(r"(\\includegraphics\[[^\]]*?),?alt=\{[^}]*\}", r"\1", tex)
-            tex = tex.replace("\\includegraphics[]", "\\includegraphics")
+            # One size rule for every figure: fit the column, never taller than ~40% of the page,
+            # keep the shape. Without it a tall diagram ran off the page and a PNG kept its pixel size.
+            tex = re.sub(r"\\includegraphics(\[[^\]]*\])?\{", lambda m: "\\includegraphics[" + _FIG_SIZE + "]{", tex)
             return tex, "pandoc"
     return _fallback_md_to_latex(pre), "fallback"
 
@@ -474,15 +481,16 @@ async def run_export(project_id: str, ctx: JobContext, *, template_slug: str, fo
             )
         else:
             ctx.progress(50, "Compiling PDF with Tectonic")
-            r = await asyncio.to_thread(
-                subprocess.run,
-                [tectonic, "-X", "compile", "--keep-logs", "--untrusted", "main.tex"],
-                capture_output=True,
-                text=True,
-                timeout=600,
-                check=False,
-                cwd=out,
-            )
+            async with _TECTONIC_LOCK:
+                r = await asyncio.to_thread(
+                    subprocess.run,
+                    [tectonic, "-X", "compile", "--keep-logs", "--untrusted", "main.tex"],
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                    check=False,
+                    cwd=out,
+                )
             log = (r.stdout + "\n" + r.stderr)[-6000:]
             storage.write_text(out / "compile.log", log)
             if r.returncode == 0 and (out / "main.pdf").exists():

@@ -76,6 +76,13 @@ async def run_critique(project_id: str, ctx: JobContext) -> dict:
         budget_markdown(storage.read_text(root / "playbook" / f), n)
         for f, n in (("argumentation.md", 3000), ("evaluation.md", 3000), ("structure.md", 2000))
     )
+    if not storage.read_text(root / "inputs" / "facts.md").strip():
+        # Draft-first projects skip the outline step that extracts facts. Without them the reviewer
+        # reported every number the author wrote as unsupported, although the description has them.
+        from ..interview.service import extract_facts
+
+        ctx.progress(5, "Collecting the facts from your description first")
+        await extract_facts(project_id, ctx)
     ctx.progress(10, f"Reading {drafted} drafted section(s), {words:,} words")
     prompt = render(
         "critique.j2",

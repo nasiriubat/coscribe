@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import math
 import re
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 
@@ -111,16 +112,31 @@ def _openalex_abstract(inv: dict | None) -> str | None:
     return _clean_abstract(" ".join(w for _, w in positions))
 
 
-async def openalex(client: httpx.AsyncClient, q: str, limit: int) -> list[Candidate]:
-    params = {"search": q, "per-page": limit, "mailto": "coscribe@example.org"}
+async def _openalex_works(client: httpx.AsyncClient, terms: str, limit: int) -> list[dict]:
+    # OpenAlex's plain `search` matches any word and favours highly cited works, so a query like
+    # "CI build failure log analysis" returned XGBoost and mortality studies. The title-and-abstract
+    # filter requires every word, which is what a literature search means.
+    params = {"filter": f"title_and_abstract.search:{terms}", "per-page": limit, "mailto": "coscribe@example.org"}
     r = await client.get("https://api.openalex.org/works", params=params, timeout=12)
     if r.status_code == 429:
         # OpenAlex's polite pool allows ~10 requests/s; a burst from the scan can trip it.
         await asyncio.sleep(2.5)
         r = await client.get("https://api.openalex.org/works", params=params, timeout=12)
     r.raise_for_status()
+    return r.json().get("results", [])
+
+
+async def openalex(client: httpx.AsyncClient, q: str, limit: int) -> list[Candidate]:
+    words = re.findall(r"[\w\-]+", q)  # commas and colons would break the filter syntax
+    works = await _openalex_works(client, " ".join(words), limit)
+    if len(works) < 3 and len(words) > 3:
+        # Every word required can leave almost nothing; the three longest words keep the topic.
+        longest = sorted(words, key=len, reverse=True)[:3]
+        core = [w for w in words if w in longest][:3]  # in the order the author wrote them
+        seen = {w.get("id") for w in works}
+        works += [w for w in await _openalex_works(client, " ".join(core), limit) if w.get("id") not in seen]
     out = []
-    for i, w in enumerate(r.json().get("results", [])):
+    for i, w in enumerate(works[:limit]):
         ids = w.get("ids") or {}
         doi = (w.get("doi") or "").replace("https://doi.org/", "") or None
         loc = w.get("primary_location") or {}
@@ -162,7 +178,11 @@ async def openalex(client: httpx.AsyncClient, q: str, limit: int) -> list[Candid
 async def arxiv(client: httpx.AsyncClient, q: str, limit: int) -> list[Candidate]:
     terms = " AND ".join(f"all:{t}" for t in re.findall(r"[A-Za-z0-9\-]{3,}", q)[:8]) or f"all:{q}"
     r = await _paced_get(
-        client, "https://export.arxiv.org/api/query", params={"search_query": terms, "max_results": limit}, timeout=20
+        client,
+        "https://export.arxiv.org/api/query",
+        params={"search_query": terms, "max_results": limit},
+        timeout=20,
+        delays=(0,),
     )
     root = ET.fromstring(r.text)
     out = []
@@ -229,22 +249,39 @@ def merge(lists: list[list[Candidate]]) -> list[Candidate]:
     return out
 
 
+# An index that throttles this server is skipped for a while instead of being asked again on
+# every query: a throttled arXiv answers 429 only after ~16 s, which made a six-query scan take
+# twenty minutes.
+COOLDOWN_S = 300.0
+_cooldown_until: dict[str, float] = {}
+
+
+def _throttled(e: Exception) -> bool:
+    return any(code in str(e) for code in ("429", "406"))
+
+
 async def search(q: str, limit: int = 12) -> tuple[list[Candidate], list[str]]:
     q = q.strip()
     errors: list[str] = []
+    indexes = {
+        "Semantic Scholar": lambda c: semantic_scholar(c, q, limit),
+        "OpenAlex": lambda c: openalex(c, q, limit),
+        "arXiv": lambda c: arxiv(c, q, min(limit, 8)),
+    }
+    now = time.monotonic()
+    active = {name: fn for name, fn in indexes.items() if _cooldown_until.get(name, 0) <= now}
+    for name in indexes.keys() - active.keys():
+        errors.append(f"{name} was rate-limiting this server, so it is skipped for a few minutes.")
     async with httpx.AsyncClient(
         headers={"User-Agent": _UA, "Accept-Encoding": "identity"}, follow_redirects=True
     ) as client:
-        results = await asyncio.gather(
-            semantic_scholar(client, q, limit),
-            openalex(client, q, limit),
-            arxiv(client, q, min(limit, 8)),
-            return_exceptions=True,
-        )
+        results = await asyncio.gather(*(fn(client) for fn in active.values()), return_exceptions=True)
     lists: list[list[Candidate]] = []
-    for name, r in zip(("Semantic Scholar", "OpenAlex", "arXiv"), results, strict=True):
+    for name, r in zip(active, results, strict=True):
         if isinstance(r, Exception):
             errors.append(friendly_index_error(name, r))
+            if _throttled(r):
+                _cooldown_until[name] = time.monotonic() + COOLDOWN_S
         else:
             lists.append(r)
     return merge(lists)[:limit], errors

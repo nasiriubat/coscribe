@@ -14,6 +14,12 @@
 - The progress strip marks the step you are on; the footer says "Still open from earlier" when
   it points back; each step has one name in the stepper, the breadcrumb and the page title.
 - The interview prompt addresses idea-first and draft-first projects as such.
+- Literature search stays on topic (OpenAlex requires every word) and skips a throttled index for
+  a few minutes, so a scan takes seconds instead of minutes when arXiv or Semantic Scholar throttle.
+- arXiv papers whose LaTeX source is refused are read from their PDF.
+- The reviewer of a draft-first project no longer reports the author's own numbers as unsupported.
+- Rewrites that cite an unknown key anywhere in a citation group are refused.
+- Exports compile one PDF at a time, and figures keep their shape within the column.
 
 ## 0.1.0 (2026-09-25)
 

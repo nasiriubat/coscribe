@@ -118,3 +118,38 @@ def test_stopped_voice_learning_does_not_stay_learning(client, admin):
     learn_service.settle_profile_status(pid)
     assert client.get(f"/api/profiles/{slug}").json()["status"] == "ready"
     client.delete(f"/api/profiles/{slug}", headers=admin)
+
+
+def test_arxiv_ingest_falls_back_to_the_pdf_when_the_source_is_refused(tmp_path, monkeypatch):
+    import asyncio
+
+    import httpx
+
+    from app.ingest import arxiv as arxiv_mod
+    from app.ingest import extract
+    from app.jobs import JobContext
+
+    async def meta(arxiv_id, client):
+        return arxiv_mod.ArxivMeta(
+            id=arxiv_id, title="A Paper", authors=["A"], abstract="x", published="2024-01-02", updated="2024-01-02"
+        )
+
+    async def refused(arxiv_id, dest, client):
+        raise httpx.HTTPStatusError("406 from arXiv", request=None, response=None)
+
+    async def pdf(arxiv_id, dest, client):
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "source.pdf").write_bytes(b"%PDF-1.4")
+        return dest / "source.pdf"
+
+    def extract_pdf(folder, path, meta):
+        assert path.name == "source.pdf"
+        return {"title": meta["title"], "word_count": 10, "source": meta["source"]}
+
+    monkeypatch.setattr(arxiv_mod, "fetch_meta", meta)
+    monkeypatch.setattr(arxiv_mod, "fetch_source", refused)
+    monkeypatch.setattr(arxiv_mod, "fetch_pdf", pdf)
+    monkeypatch.setattr(extract, "extract_pdf", extract_pdf)
+    monkeypatch.setattr(JobContext, "progress", lambda self, pct, message=None: None)
+    out = asyncio.run(ingest_service.ingest_arxiv(tmp_path, "2401.00001", JobContext("no-job", "no-user")))
+    assert out["source"] == "arxiv-pdf" and out["title"] == "A Paper"

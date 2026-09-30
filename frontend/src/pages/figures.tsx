@@ -37,7 +37,7 @@ async function renderMermaid(id: string, source: string): Promise<string> {
   return svg;
 }
 
-async function svgToPng(svg: string, scale = 2): Promise<Blob> {
+async function svgToPng(svg: string, scale = 4): Promise<Blob> {
   const blobUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
   try {
     const img = new Image();

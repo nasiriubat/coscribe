@@ -58,11 +58,15 @@ class ArxivMeta:
 
 
 async def _paced_get(
-    client: httpx.AsyncClient, url: str, *, params: dict | None = None, timeout: float = 60
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    params: dict | None = None,
+    timeout: float = 60,
+    delays: tuple[float, ...] = (0, 4, 10, 20),
 ) -> httpx.Response:
-    """GET with global pacing and retries on 406/429/5xx."""
+    """GET with global pacing and retries on 406/429/5xx. Search passes one attempt: it can do without arXiv."""
     global _last_call
-    delays = (0, 4, 10, 20)
     last: Exception | None = None
     for delay in delays:
         if delay:

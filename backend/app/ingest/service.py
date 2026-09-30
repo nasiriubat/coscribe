@@ -9,6 +9,8 @@ import secrets
 import shutil
 from pathlib import Path
 
+import httpx
+
 from ..jobs import JobContext
 from . import arxiv as arxiv_mod
 from . import extract
@@ -70,7 +72,14 @@ async def ingest_arxiv(root: Path, arxiv_id: str, ctx: JobContext) -> dict:
             }
             _write_pending(folder, meta)
             ctx.progress(20, "Downloading source")
-            kind = await arxiv_mod.fetch_source(arxiv_id, folder, client)
+            try:
+                kind = await arxiv_mod.fetch_source(arxiv_id, folder, client)
+            except httpx.HTTPError:
+                # arXiv throttles the source endpoint by address (406/429) while the PDF still downloads;
+                # a paper read from its PDF is better than no paper.
+                ctx.progress(30, "LaTeX source unavailable, using the PDF")
+                await arxiv_mod.fetch_pdf(arxiv_id, folder, client)
+                kind = "pdf"
             if kind == "latex":
                 ctx.progress(55, "Converting LaTeX to Markdown")
                 try:

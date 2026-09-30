@@ -260,7 +260,42 @@ What confused was orientation and wording, not volume.
 5. Lint underlines a whole paragraph when the paragraph is one line.
 6. Review findings do not link to their section.
 
-## Needed from the workspace owner
+## 16. Three papers end to end in Docker (30 September 2026)
+
+Clean Docker workspace, OpenRouter with gpt-4.1 (gpt-4.1-mini for utility), one paper per
+starting point: Tender Scout (built, tool paper, no evaluation yet), an AI-and-debugging study
+protocol (idea, empirical study, no data yet) and LogLens (draft, tool paper). All three were
+driven through every step and exported as ACM PDF, DOCX and a LaTeX zip: 7, 6 and 2 pages; the
+remaining [NEEDS] placeholders are facts the personas do not have (results, URL, licence).
+
+**Fixed during the run (tests added, 103 pass):**
+- Search relevance: OpenAlex's plain `search` ranked XGBoost and mortality studies first for a CI
+  query; it now uses the title-and-abstract filter (every word required) and relaxes to the
+  three longest words when that finds almost nothing.
+- Search speed: a throttled index is skipped for five minutes instead of retried per query
+  (a throttled arXiv costs ~16 s per reply); search queries 4 to 7 s instead of ~100 s.
+- arXiv ingest falls back to the PDF when the source endpoint answers 406/429.
+- Reviewer on draft-first projects: facts are extracted first; before, every number the author
+  wrote was reported as unsupported.
+- Rewrite guard: every key in a `[@a; @b]` group is checked, not only the first.
+- Export: one Tectonic at a time (three first compiles at once failed on the shared package
+  cache); every figure fits the column at most 40% of the page high, keeping its shape; PNGs are
+  rendered at 4x.
+
+**Found, not fixed (need a decision or a design):**
+1. Scan candidates marked as open PDFs mostly fail to import: publishers answer 403 or a login
+   page. Five of five failed for the idea project; the failures do not show on the Sources page.
+2. "Rewrite to what my sources support" made 6 of 7 sentences worse (one contradicted its
+   source, two asserted absence, one swapped in unchecked citations). It does not see the
+   check's reason or passage.
+3. The citation check says "not supported" when a record has no abstract, even when the title
+   states the claim.
+4. Revise and draft passes add confident general claims ("instructors now report", "interviews
+   confirm") that the reviewer then catches; a guard like the hygiene pass would be cheaper.
+5. The Figures page cannot re-render an unchanged diagram, and sections added in the Studio
+   always go to the end (no reordering).
+
+
 - VPS or server with a domain, and who administers it.
 - Semantic Scholar API key (free) and an SMTP account for the app's mail.
 - Names of five colleagues willing to write one paper each in the two study weeks.

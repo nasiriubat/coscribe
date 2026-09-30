@@ -164,4 +164,8 @@ def test_check_find_and_rewrite_use_the_utility_model(client, admin, monkeypatch
     replies["cite_rewrite"] = {"sentence": "Everyone agrees [@made2020up].", "note": ""}
     rw = client.post(f"/api/projects/{slug}/references/rewrite", json={"sentence": sentence}, headers=admin).json()
     assert rw["used_keys"] == [] and "[CITE:" in rw["sentence"] and "made2020up" not in rw["sentence"]
+    # an invented key hidden behind a real one in the same group is refused too
+    replies["cite_rewrite"] = {"sentence": "Everyone agrees [@prather2024robots; @made2020up].", "note": ""}
+    rw = client.post(f"/api/projects/{slug}/references/rewrite", json={"sentence": sentence}, headers=admin).json()
+    assert rw["used_keys"] == [] and "made2020up" not in rw["sentence"]
     client.delete(f"/api/projects/{slug}", headers=admin)
